@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Cross-account IAM role that ONLY allows listing EC2 instances (DescribeInstances)
+
+Parameters:
+  ExternalAccountId:
+    Type: String
+    Default: "577926974532"
+    Description: AWS Account ID that may assume this role
+  ExternalId:
+    Type: String
+    Default: ""
+    Description: (Optional) ExternalId required to assume this role; leave blank to disable
+  RoleName:
+    Type: String
+    Default: CrossAccountEc2ListInstancesRole
+    Description: Name for the IAM Role
+
+Conditions:
+  HasExternalId: !Not [!Equals [!Ref ExternalId, ""]]
+
+Resources:
+  Ec2ListInstancesRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub arn:aws:iam::${ExternalAccountId}:root
+            Action: sts:AssumeRole
+            Condition: !If
+              - HasExternalId
+              - { StringEquals: { "sts:ExternalId": !Ref ExternalId } }
+              - { }  # no condition when ExternalId is blank
+      Policies:
+        - PolicyName: Ec2ListInstancesOnly
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ListInstances
+                Effect: Allow
+                Action: ec2:DescribeInstances
+                Resource: "*"
+
+Outputs:
+  RoleArn:
+    Description: ARN of the created role to assume from the external account
+    Value: !GetAtt Ec2ListInstancesRole.Arn
+  RoleName:
+    Description: Name of the created role
+    Value: !Ref Ec2ListInstancesRole
